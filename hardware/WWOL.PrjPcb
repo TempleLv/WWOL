@@ -81,13 +81,13 @@ GenerateClassCluster=0
 DocumentUniqueId=NTXDNLVN
 
 [Document3]
-DocumentPath=WWOL.SchDoc
+DocumentPath=WWOL_main.SchDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
 AnnotationIndexControlEnabled=0
 AnnotateSuffix=
 AnnotateScope=All
-AnnotateOrder=-1
+AnnotateOrder=0
 DoLibraryUpdate=1
 DoDatabaseUpdate=1
 ClassGenCCAutoEnabled=1
@@ -98,6 +98,23 @@ GenerateClassCluster=0
 DocumentUniqueId=MIPGABBN
 
 [Document4]
+DocumentPath=WWOL_phy.SchDoc
+AnnotationEnabled=1
+AnnotateStartValue=1
+AnnotationIndexControlEnabled=0
+AnnotateSuffix=
+AnnotateScope=All
+AnnotateOrder=1
+DoLibraryUpdate=1
+DoDatabaseUpdate=1
+ClassGenCCAutoEnabled=1
+ClassGenCCAutoRoomEnabled=1
+ClassGenNCAutoScope=None
+DItemRevisionGUID=
+GenerateClassCluster=0
+DocumentUniqueId=CJUHXCQW
+
+[Document5]
 DocumentPath=WWOL.PcbDoc
 AnnotationEnabled=1
 AnnotateStartValue=1
