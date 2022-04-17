@@ -72,33 +72,17 @@ static int WOL(uint8_t *mac_addr) {
     char *dst_host = "255.255.255.255";
     uint16_t dst_port = 9;
     uint8_t wol_buf[102] = {0};
+    int err = 0;
 
     dest_addr.sin_addr.s_addr = inet_addr(dst_host);
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(dst_port);
 
-    int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
         ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
     }
 
-    // int optval = 1;//这个值一定要设置，否则可能导致sendto()失败
-	// setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(int));
-	// optval = 1;//这个值一定要设置，否则可能导致sendto()失败
-	// setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
-
-    // Bind the socket to any address
-    struct sockaddr_in saddr = { 0 };
-    saddr.sin_family = PF_INET;
-    saddr.sin_port = htons(0);
-    saddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    // saddr.sin_addr.s_addr = inet_addr("192.168.3.181");
-    int err = bind(sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
-    if (err < 0) {
-        ESP_LOGE(TAG, "Failed to bind socket. Error %d", errno);
-    }
-
-    ESP_LOGI(TAG, "Socket created, sending to %s:%d", dst_host, dst_port);
     for(int i=0; i<6; i++){
         wol_buf[i] = 0xFF;
     }
@@ -109,10 +93,38 @@ static int WOL(uint8_t *mac_addr) {
         }
         offset += 6;
     }
-    err = sendto(sock, wol_buf, sizeof(wol_buf), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-    if (err < 0) {
-        ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+
+    for(int i=0; i<5; i++) {
+        struct sockaddr_in saddr = { 0 };
+        saddr.sin_family = AF_INET;
+        saddr.sin_port = htons(0);
+        saddr.sin_addr.s_addr = inet_addr("127.0.0.66");
+        err = bind(sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
+        if (err < 0) {
+            ESP_LOGE(TAG, "Failed to bind socket. Error %d", errno);
+        }
+
+        err = sendto(sock, wol_buf, sizeof(wol_buf), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        if (err < 0) {
+            ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+        }
+
+        saddr.sin_family = AF_INET;
+        saddr.sin_port = htons(0);
+        saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        err = bind(sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
+        if (err < 0) {
+            ESP_LOGE(TAG, "Failed to bind socket. Error %d", errno);
+        }
+
+        err = sendto(sock, wol_buf, sizeof(wol_buf), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        if (err < 0) {
+            ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+        }
+
+        vTaskDelay(100 / portTICK_RATE_MS);
     }
+
     ESP_LOGI(TAG, "Message sent");
     if (sock != -1) {
         ESP_LOGE(TAG, "Shutting down socket");
@@ -165,7 +177,7 @@ static esp_err_t light_set_param(const char *id, const esp_qcloud_param_val_t *v
 
     if (!strcmp(id, "power_switch")) {
         err = light_driver_set_switch(val->b);
-        uint8_t mac[6] = {0xB0, 0x7B, 0x25, 0x16, 0x5A, 0x2E};
+        uint8_t mac[6] = {0x1C, 0x87, 0x2C, 0x61, 0x2F, 0xA1};
         WOL(mac);
     } else if (!strcmp(id, "value")) {
         err = light_driver_set_value(val->i);
@@ -279,19 +291,6 @@ static esp_err_t get_wifi_config(wifi_config_t *wifi_cfg, uint32_t wait_ms)
 
 void app_main()
 {
-
-    // // Initialize TCP/IP network interface (should be called only once in application)
-    // ESP_ERROR_CHECK(esp_netif_init());
-    // // Create default event loop that running in background
-    // ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-
-
-    // while(1)
-    // {
-    //     vTaskDelay(1000 / portTICK_RATE_MS);
-    // }
-
     /**
      * @brief Add debug function, you can use serial command and remote debugging.
      */
@@ -356,6 +355,18 @@ void app_main()
 
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);
+
+    ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
+
+    char* ip= "127.0.0.66";
+    char* gateway = "127.0.0.66";
+    char* netmask = "255.255.255.0";
+    esp_netif_ip_info_t info_t;
+    memset(&info_t, 0, sizeof(esp_netif_ip_info_t));
+    info_t.ip.addr = esp_ip4addr_aton((const char *)ip);
+    info_t.gw.addr = esp_ip4addr_aton((const char *)gateway);
+    info_t.netmask.addr = esp_ip4addr_aton((const char *)netmask);
+    esp_netif_set_ip_info(eth_netif, &info_t);    
 
     // Init MAC and PHY configs to default
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
