@@ -69,8 +69,6 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
 
 static int WOL(uint8_t *mac_addr) {
     struct sockaddr_in dest_addr;
-    int addr_family = 0;
-    int ip_protocol = 0;
     char *dst_host = "255.255.255.255";
     uint16_t dst_port = 9;
     uint8_t wol_buf[102] = {0};
@@ -78,13 +76,28 @@ static int WOL(uint8_t *mac_addr) {
     dest_addr.sin_addr.s_addr = inet_addr(dst_host);
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(dst_port);
-    addr_family = AF_INET;
-    ip_protocol = IPPROTO_IP;
 
-    int sock = socket(addr_family, SOCK_DGRAM, ip_protocol);
+    int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
         ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
     }
+
+    // int optval = 1;//这个值一定要设置，否则可能导致sendto()失败
+	// setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(int));
+	// optval = 1;//这个值一定要设置，否则可能导致sendto()失败
+	// setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
+
+    // Bind the socket to any address
+    struct sockaddr_in saddr = { 0 };
+    saddr.sin_family = PF_INET;
+    saddr.sin_port = htons(0);
+    saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    // saddr.sin_addr.s_addr = inet_addr("192.168.3.181");
+    int err = bind(sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
+    if (err < 0) {
+        ESP_LOGE(TAG, "Failed to bind socket. Error %d", errno);
+    }
+
     ESP_LOGI(TAG, "Socket created, sending to %s:%d", dst_host, dst_port);
     for(int i=0; i<6; i++){
         wol_buf[i] = 0xFF;
@@ -96,7 +109,7 @@ static int WOL(uint8_t *mac_addr) {
         }
         offset += 6;
     }
-    int err = sendto(sock, wol_buf, sizeof(wol_buf), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    err = sendto(sock, wol_buf, sizeof(wol_buf), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
     if (err < 0) {
         ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
     }
