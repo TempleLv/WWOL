@@ -1,12 +1,3 @@
-/* LED Light Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -15,8 +6,6 @@
 #include "esp_qcloud_storage.h"
 #include "esp_qcloud_iothub.h"
 #include "esp_qcloud_prov.h"
-
-#include "light_driver.h"
 
 #ifdef CONFIG_BT_ENABLE
 #include "esp_bt.h"
@@ -152,42 +141,43 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
 }
 
 /* Callback to handle commands received from the QCloud cloud */
-static esp_err_t light_get_param(const char *id, esp_qcloud_param_val_t *val)
+static esp_err_t wwol_get_param(const char *id, esp_qcloud_param_val_t *val)
 {
-    if (!strcmp(id, "power_switch")) {
-        val->b = light_driver_get_switch();
-    } else if (!strcmp(id, "value")) {
-        val->i = light_driver_get_value();
-    } else if (!strcmp(id, "hue")) {
-        val->i = light_driver_get_hue();
-    } else if (!strcmp(id, "saturation")) {
-        val->i = light_driver_get_saturation();
-    }
+    // if (!strcmp(id, "power_switch")) {
+    //     val->b = light_driver_get_switch();
+    // } else if (!strcmp(id, "value")) {
+    //     val->i = light_driver_get_value();
+    // } else if (!strcmp(id, "hue")) {
+    //     val->i = light_driver_get_hue();
+    // } else if (!strcmp(id, "saturation")) {
+    //     val->i = light_driver_get_saturation();
+    // }
 
-    ESP_LOGI(TAG, "Report id: %s, val: %d", id, val->i);
+    // ESP_LOGI(TAG, "Report id: %s, val: %d", id, val->i);
 
     return ESP_OK;
 }
 
 /* Callback to handle commands received from the QCloud cloud */
-static esp_err_t light_set_param(const char *id, const esp_qcloud_param_val_t *val)
+static esp_err_t wwol_set_param(const char *id, const esp_qcloud_param_val_t *val)
 {
     esp_err_t err = ESP_FAIL;
     ESP_LOGI(TAG, "Received id: %s, val: %d", id, val->i);
 
     if (!strcmp(id, "power_switch")) {
-        err = light_driver_set_switch(val->b);
+        // err = light_driver_set_switch(val->b);
         uint8_t mac[6] = {0x1C, 0x87, 0x2C, 0x61, 0x2F, 0xA1};
         WOL(mac);
-    } else if (!strcmp(id, "value")) {
-        err = light_driver_set_value(val->i);
-    } else if (!strcmp(id, "hue")) {
-        err = light_driver_set_hue(val->i);
-    } else if (!strcmp(id, "saturation")) {
-        err = light_driver_set_saturation(val->i);
-    } else {
-        ESP_LOGW(TAG, "This parameter is not supported");
-    }
+    } 
+    // else if (!strcmp(id, "value")) {
+    //     err = light_driver_set_value(val->i);
+    // } else if (!strcmp(id, "hue")) {
+    //     err = light_driver_set_hue(val->i);
+    // } else if (!strcmp(id, "saturation")) {
+    //     err = light_driver_set_saturation(val->i);
+    // } else {
+    //     ESP_LOGW(TAG, "This parameter is not supported");
+    // }
 
     return err;
 }
@@ -244,9 +234,6 @@ static esp_err_t get_wifi_config(wifi_config_t *wifi_cfg, uint32_t wait_ms)
     esp_wifi_restore();
     esp_wifi_start();
 
-    /**< The yellow light flashes to indicate that the device enters the state of configuring the network */
-    light_driver_breath_start(128, 128, 0); /**< yellow blink */
-
     /**< Note: Smartconfig and softapconfig working at the same time will affect the configure network performance */
 
 #ifdef CONFIG_LIGHT_PROVISIONING_SOFTAPCONFIG
@@ -283,8 +270,6 @@ static esp_err_t get_wifi_config(wifi_config_t *wifi_cfg, uint32_t wait_ms)
     /**< Store the configure of the device */
     esp_qcloud_storage_set("wifi_config", wifi_cfg, sizeof(wifi_config_t));
 
-    /**< Configure the network successfully to stop the light flashing */
-    light_driver_breath_stop(); /**< stop blink */
 
     return ESP_OK;
 }
@@ -310,25 +295,12 @@ void app_main()
     esp_qcloud_print_system_info(10000);
 #endif /**< CONFIG_LIGHT_DEBUG */
 
-    /**
-     * @brief Initialize Application specific hardware drivers and set initial state.
-     */
-    light_driver_config_t driver_cfg = COFNIG_LIGHT_TYPE_DEFAULT();
-    ESP_ERROR_CHECK(light_driver_init(&driver_cfg));
-
     /**< Continuous power off and restart more than five times to reset the device */
     if (esp_qcloud_reboot_unbroken_count() >= CONFIG_LIGHT_REBOOT_UNBROKEN_COUNT_RESET) {
         ESP_LOGW(TAG, "Erase information saved in flash");
         esp_qcloud_storage_erase(CONFIG_QCLOUD_NVS_NAMESPACE);
     } else if (esp_qcloud_reboot_is_exception(false)) {
         ESP_LOGE(TAG, "The device has been restarted abnormally");
-#ifdef CONFIG_LIGHT_DEBUG
-        light_driver_breath_start(255, 0, 0); /**< red blink */
-#else
-        ESP_ERROR_CHECK(light_driver_set_switch(true));
-#endif /**< CONFIG_LIGHT_DEBUG */
-    } else {
-        ESP_ERROR_CHECK(light_driver_set_switch(true));
     }
 
     /*
@@ -345,7 +317,7 @@ void app_main()
     ESP_ERROR_CHECK(esp_qcloud_device_add_property("saturation", QCLOUD_VAL_TYPE_INTEGER));
     ESP_ERROR_CHECK(esp_qcloud_device_add_property("value", QCLOUD_VAL_TYPE_INTEGER));
     /**< The processing function of the communication between the device and the server */
-    ESP_ERROR_CHECK(esp_qcloud_device_add_property_cb(light_get_param, light_set_param));
+    ESP_ERROR_CHECK(esp_qcloud_device_add_property_cb(wwol_get_param, wwol_set_param));
     
     /**
      * @brief Initialize Wi-Fi.
