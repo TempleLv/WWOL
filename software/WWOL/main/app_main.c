@@ -26,6 +26,9 @@
 #define CONFIG_EXAMPLE_ETH_PHY_ADDR 0
 
 static const char *TAG = "app_main";
+static esp_netif_t *l_eth_netif = NULL;
+static esp_eth_handle_t l_eth_handle = NULL;
+static char l_MAC_addr[512] = "B0:7B:25:16:5A:2E";
 
 /** Event handler for Ethernet events */
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
@@ -83,6 +86,18 @@ static int WOL(uint8_t *mac_addr) {
         offset += 6;
     }
 
+    esp_netif_dhcpc_stop(l_eth_netif);
+    char* ip= "127.0.0.66";
+    char* gateway = "127.0.0.66";
+    char* netmask = "255.255.255.0";
+    esp_netif_ip_info_t info_t;
+    memset(&info_t, 0, sizeof(esp_netif_ip_info_t));
+    info_t.ip.addr = esp_ip4addr_aton((const char *)ip);
+    info_t.gw.addr = esp_ip4addr_aton((const char *)gateway);
+    info_t.netmask.addr = esp_ip4addr_aton((const char *)netmask);
+    esp_netif_set_ip_info(l_eth_netif, &info_t);   
+    esp_eth_start(l_eth_handle);
+
     for(int i=0; i<5; i++) {
         struct sockaddr_in saddr = { 0 };
         saddr.sin_family = AF_INET;
@@ -111,8 +126,9 @@ static int WOL(uint8_t *mac_addr) {
             ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
         }
 
-        vTaskDelay(100 / portTICK_RATE_MS);
+        vTaskDelay(50 / portTICK_RATE_MS);
     }
+    esp_eth_stop(l_eth_handle);
 
     ESP_LOGI(TAG, "Message sent");
     if (sock != -1) {
@@ -143,17 +159,17 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
 /* Callback to handle commands received from the QCloud cloud */
 static esp_err_t wwol_get_param(const char *id, esp_qcloud_param_val_t *val)
 {
-    // if (!strcmp(id, "power_switch")) {
-    //     val->b = light_driver_get_switch();
-    // } else if (!strcmp(id, "value")) {
-    //     val->i = light_driver_get_value();
-    // } else if (!strcmp(id, "hue")) {
-    //     val->i = light_driver_get_hue();
-    // } else if (!strcmp(id, "saturation")) {
-    //     val->i = light_driver_get_saturation();
-    // }
-
-    // ESP_LOGI(TAG, "Report id: %s, val: %d", id, val->i);
+    if (!strcmp(id, "MAC_addr")) {
+        val->s = l_MAC_addr;
+        val->type = QCLOUD_VAL_TYPE_STRING;
+        ESP_LOGI(TAG, "Report id: %s, val: %s", id, val->s);
+    } else if (!strcmp(id, "WOL_send")) {
+        val->s = l_MAC_addr;
+        val->type = QCLOUD_VAL_TYPE_STRING;
+        ESP_LOGI(TAG, "Report id: %s, val: %s", id, val->s);
+    } else {
+        ESP_LOGI(TAG, "Report id: %s, val: %d", id, val->i);
+    }
 
     return ESP_OK;
 }
@@ -162,22 +178,23 @@ static esp_err_t wwol_get_param(const char *id, esp_qcloud_param_val_t *val)
 static esp_err_t wwol_set_param(const char *id, const esp_qcloud_param_val_t *val)
 {
     esp_err_t err = ESP_FAIL;
-    ESP_LOGI(TAG, "Received id: %s, val: %d", id, val->i);
+    
 
-    if (!strcmp(id, "power_switch")) {
-        // err = light_driver_set_switch(val->b);
-        uint8_t mac[6] = {0x1C, 0x87, 0x2C, 0x61, 0x2F, 0xA1};
+    if (!strcmp(id, "MAC_addr")) {
+        uint8_t mac[6] = {0};
+        sscanf(l_MAC_addr, "%02X:%02X:%02X:%02X:%02X:%02X", 
+            &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
         WOL(mac);
-    } 
-    // else if (!strcmp(id, "value")) {
-    //     err = light_driver_set_value(val->i);
-    // } else if (!strcmp(id, "hue")) {
-    //     err = light_driver_set_hue(val->i);
-    // } else if (!strcmp(id, "saturation")) {
-    //     err = light_driver_set_saturation(val->i);
-    // } else {
-    //     ESP_LOGW(TAG, "This parameter is not supported");
-    // }
+        err = ESP_OK;
+        ESP_LOGI(TAG, "Received id: %s, val: %s", id, val->s);
+    } else if (!strcmp(id, "WOL_send")) {
+        strncpy(l_MAC_addr, val->s, sizeof(l_MAC_addr));
+        WOL(mac);
+        err = ESP_OK;
+        ESP_LOGI(TAG, "Received id: %s, val: %s", id, val->s);
+    }else {
+        ESP_LOGI(TAG, "Received id: %s, val: %d", id, val->i);
+    }
 
     return err;
 }
@@ -312,10 +329,7 @@ void app_main()
     /**< Configure the version of the device, and use this information to determine whether to OTA */
     ESP_ERROR_CHECK(esp_qcloud_device_add_fw_version("0.0.1"));
     /**< Register the properties of the device */
-    ESP_ERROR_CHECK(esp_qcloud_device_add_property("power_switch", QCLOUD_VAL_TYPE_BOOLEAN));
-    ESP_ERROR_CHECK(esp_qcloud_device_add_property("hue", QCLOUD_VAL_TYPE_INTEGER));
-    ESP_ERROR_CHECK(esp_qcloud_device_add_property("saturation", QCLOUD_VAL_TYPE_INTEGER));
-    ESP_ERROR_CHECK(esp_qcloud_device_add_property("value", QCLOUD_VAL_TYPE_INTEGER));
+    ESP_ERROR_CHECK(esp_qcloud_device_add_property("MAC_addr", QCLOUD_VAL_TYPE_STRING));
     /**< The processing function of the communication between the device and the server */
     ESP_ERROR_CHECK(esp_qcloud_device_add_property_cb(wwol_get_param, wwol_set_param));
     
@@ -326,9 +340,9 @@ void app_main()
     ESP_ERROR_CHECK(esp_event_handler_register(QCLOUD_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
 
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
-    esp_netif_t *eth_netif = esp_netif_new(&cfg);
+    l_eth_netif = esp_netif_new(&cfg);
 
-    ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
+    ESP_ERROR_CHECK(esp_netif_dhcpc_stop(l_eth_netif));
 
     char* ip= "127.0.0.66";
     char* gateway = "127.0.0.66";
@@ -338,7 +352,7 @@ void app_main()
     info_t.ip.addr = esp_ip4addr_aton((const char *)ip);
     info_t.gw.addr = esp_ip4addr_aton((const char *)gateway);
     info_t.netmask.addr = esp_ip4addr_aton((const char *)netmask);
-    esp_netif_set_ip_info(eth_netif, &info_t);    
+    esp_netif_set_ip_info(l_eth_netif, &info_t);    
 
     // Init MAC and PHY configs to default
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
@@ -351,15 +365,13 @@ void app_main()
     esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
     esp_eth_phy_t *phy = esp_eth_phy_new_lan87xx(&phy_config);
     esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
-    esp_eth_handle_t eth_handle = NULL;
-    ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
+    ESP_ERROR_CHECK(esp_eth_driver_install(&config, &l_eth_handle));
     /* attach Ethernet driver to TCP/IP stack */
-    ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
+    ESP_ERROR_CHECK(esp_netif_attach(l_eth_netif, esp_eth_new_netif_glue(l_eth_handle)));
 
     // Register user defined event handers
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_eth_start(eth_handle));
 
     /**
      * @brief Get the router configuration

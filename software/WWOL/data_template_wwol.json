@@ -1,0 +1,82 @@
+{
+	"version": "1.0",
+	"properties": [
+	  {
+		"id": "WOL_send",
+		"name": "WOL发送",
+		"desc": "控制WOL发送",
+		"required": false,
+		"mode": "rw",
+		"define": {
+		  "type": "bool",
+		  "mapping": {
+			"0": "发送",
+			"1": "发送"
+		  }
+		}
+	  },
+	  {
+		"id": "MAC_addr",
+		"name": "MAC地址",
+		"desc": "",
+		"mode": "rw",
+		"define": {
+		  "type": "string",
+		  "min": "0",
+		  "max": "512"
+		},
+		"required": false
+	  },
+	  {
+		"id": "MAC_set",
+		"name": "MAC设置",
+		"desc": "",
+		"mode": "rw",
+		"define": {
+		  "type": "string",
+		  "min": "0",
+		  "max": "512"
+		},
+		"required": false
+	  }
+	],
+	"events": [
+	  {
+		"id": "hardware_fault",
+		"name": "Hardware_fault",
+		"desc": "Report hardware fault",
+		"type": "fault",
+		"required": false,
+		"params": [
+		  {
+			"id": "name",
+			"name": "Name",
+			"desc": "Name like: memory,tf card, censors ...",
+			"define": {
+			  "type": "string",
+			  "min": "0",
+			  "max": "64"
+			}
+		  },
+		  {
+			"id": "error_code",
+			"name": "Error_Code",
+			"desc": "Error code for fault",
+			"define": {
+			  "type": "int",
+			  "unit": "",
+			  "step": "1",
+			  "min": "0",
+			  "max": "2000",
+			  "start": "1"
+			}
+		  }
+		]
+	  }
+	],
+	"actions": [],
+	"profile": {
+	  "ProductId": "YL9B7KESOA",
+	  "CategoryId": "1"
+	}
+  }
